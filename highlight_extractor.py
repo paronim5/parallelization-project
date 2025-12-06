@@ -29,8 +29,9 @@ class HighlightExtractor:
         self.config = ConfigParser()
         self.config.read(config_path, encoding='utf-8')
 
-        self.input_path = Path(self.config.get('paths', 'input_path'))
-        self.output_path = Path(self.config.get('paths', 'output_path'))
+        self.chapter_num = self.config.getint('paths', 'chapter_num')
+        self.input_path = Path(f"book_chapters/chapter{self.chapter_num}/input.htm")
+        self.output_path = Path(f"book_chapters/chapter{self.chapter_num}/words.txt")
         default_colors_str = self.config.get('settings', 'default_colors')
         self.default_colors = [color.strip() for color in default_colors_str.split(',')]
         self.encoding = self.config.get('settings', 'encoding')
