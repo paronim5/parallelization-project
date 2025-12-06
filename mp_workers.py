@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup
+from lxml import html
 
 """
 Multiprocessing worker functions used by HighlightExtractor.
@@ -37,16 +37,16 @@ def extract_words_for_color_html(q, html_text, color):
     - q: multiprocessing.Queue
       Queue to receive extracted word strings.
     - html_text: str
-      HTML document as a string to parse with BeautifulSoup.
+      HTML document as a string to parse with lxml.
     - color: str
       Highlight class name to match (e.g., 'highlight-yellow').
 
     Returns:
     - None
     """
-    local_soup = BeautifulSoup(html_text, "html.parser")
-    tags = local_soup.find_all("nrmark", class_=color)
+    tree = html.fromstring(html_text)
+    tags = tree.xpath(f"//nrmark[contains(concat(' ', @class, ' '), ' {color} ')]")
     for t in tags:
-        text = t.text.strip()
+        text = t.text_content().strip()
         if text:
             q.put(text)

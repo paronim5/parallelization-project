@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from pathlib import Path
-from bs4 import BeautifulSoup
+from lxml import html
 from configparser import ConfigParser
 from mp_workers import writer_process, extract_words_for_color_html
 
@@ -38,26 +38,25 @@ class HighlightExtractor:
 
     def parse_html(self):
         """
-        Parse the input HTML file into a BeautifulSoup object.
+        Parse the input HTML file into an lxml HTML element tree.
 
-        If the configured input file is not found, a small sample HTML
-        document is used as a fallback.
+        If the configured input file is not found, raises FileNotFoundError.
 
         ## Params:
          - None
 
         ## Returns:
-         - BeautifulSoup: Parsed HTML document.
+         - lxml.html.HtmlElement: Parsed HTML document root.
         """
         try:
             with open(self.input_path, "r", encoding=self.encoding) as file:
-                soup = BeautifulSoup(file, "html.parser")
-                return soup
+                tree = html.parse(file).getroot()
+                return tree
         except FileNotFoundError:
             print(f"Input file {self.input_path} not found.")
-            exit(1)
+            raise
 
-    def _list_highlight_colors(self, soup):
+    def _list_highlight_colors(self, tree):
         """
         Detect all highlight color classes present in the document.
 
@@ -65,23 +64,24 @@ class HighlightExtractor:
         configuration are used instead.
 
         ## Params:
-         - soup: BeautifulSoup
-          Parsed HTML document to scan for `nrmark` tags and their classes.
+         - tree: lxml.html.HtmlElement
+          Parsed HTML document root to scan for `nrmark` tags and their classes.
 
         ## Returns:
          - list[str]: Sorted list of highlight class names (e.g., 'highlight-red').
         """
         colors = set()
-        for tag in soup.find_all("nrmark"):
-            classes = tag.get("class") or []
-            for c in classes:
-                if c.startswith("highlight-"):
-                    colors.add(c)
+        for tag in tree.xpath("//nrmark[@class]"):
+            class_attr = tag.get("class")
+            if class_attr:
+                for c in class_attr.split():
+                    if c.startswith("highlight-"):
+                        colors.add(c)
         if not colors:
             colors = set(self.default_colors)
         return sorted(colors)
 
-    def _extract_with_processes(self, soup, colors):
+    def _extract_with_processes(self, tree, colors):
         """
         Extract highlighted words using separate processes per color.
 
@@ -90,15 +90,15 @@ class HighlightExtractor:
         shared queue.
 
         ## Params:
-         - soup: BeautifulSoup
-          Parsed HTML document.
+         - tree: lxml.html.HtmlElement
+          Parsed HTML document root.
          - colors: list[str]
           Highlight class names to process (e.g., 'highlight-yellow').
 
         ## Returns:
          - None
         """
-        html = str(soup)
+        html_str = html.tostring(tree, encoding='unicode')
 
         q = mp.Queue()
 
@@ -107,7 +107,7 @@ class HighlightExtractor:
 
         workers = []
         for color in colors:
-            p = mp.Process(target=extract_words_for_color_html, args=(q, html, color))
+            p = mp.Process(target=extract_words_for_color_html, args=(q, html_str, color))
             p.start()
             workers.append(p)
 
@@ -119,17 +119,16 @@ class HighlightExtractor:
         q.put(None)
         writer.join()
         
-    def extract_highlights(self, soup, colors=None):
+    def extract_highlights(self, tree, colors=None):
         """
         Extract highlighted words from the given HTML document.
 
         If no `colors` are provided, they are detected from the document or
         fall back to defaults from configuration.
 
-        Params:
-         - soup: BeautifulSoup
-          Parsed HTML document.
         ## Params:
+         - tree: lxml.html.HtmlElement
+          Parsed HTML document root.
          - colors: list[str] | None
           Optional list of highlight classes to process.
 
@@ -137,9 +136,9 @@ class HighlightExtractor:
          - None
         """
         if colors is None:
-            colors = self._list_highlight_colors(soup)
+            colors = self._list_highlight_colors(tree)
 
-        self._extract_with_processes(soup, colors)
+        self._extract_with_processes(tree, colors)
 
     def run(self):
         """

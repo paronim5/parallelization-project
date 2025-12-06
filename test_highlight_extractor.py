@@ -47,7 +47,7 @@ class TestHighlightExtractor(unittest.TestCase):
             os.remove(self.input_path)
 
         extractor = HighlightExtractor(self.config_path)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(FileNotFoundError):
             extractor.parse_html()
 
     def test_parse_html_reads_file_successfully(self):
@@ -55,30 +55,28 @@ class TestHighlightExtractor(unittest.TestCase):
         self.input_path.write_text(sample_html, encoding="utf-8")
 
         extractor = HighlightExtractor(self.config_path)
-        soup = extractor.parse_html()
-        self.assertIn("word", soup.text)
+        tree = extractor.parse_html()
+        self.assertIn("word", tree.text_content())
 
-    def test_list_highlight_colors_detects_from_soup(self):
-        html = '''
+    def test_list_highlight_colors_detects_from_tree(self):
+        html_str = '''
         <nrmark class="highlight-green">a</nrmark>
         <nrmark class="highlight-red">b</nrmark>
         <nrmark class="other highlight-blue">c</nrmark>
         '''
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
-    
+        tree = html.fromstring(html_str)
+
         extractor = HighlightExtractor(self.config_path)
-        colors = extractor._list_highlight_colors(soup)
+        colors = extractor._list_highlight_colors(tree)
         # Should find all highlight-* classes, even among others
         self.assertEqual(set(colors), {"highlight-green", "highlight-red", "highlight-blue"})
 
     def test_list_highlight_colors_uses_defaults_if_none_found(self):
-        html = '<div>no highlights</div>'
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
+        html_str = '<div>no highlights</div>'
+        tree = html.fromstring(html_str)
 
         extractor = HighlightExtractor(self.config_path)
-        colors = extractor._list_highlight_colors(soup)
+        colors = extractor._list_highlight_colors(tree)
         self.assertEqual(set(colors), {"highlight-yellow", "highlight-blue"})
 
     def test_extract_words_for_color_html_function(self):
