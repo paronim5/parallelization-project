@@ -2,6 +2,10 @@
 
 A Python tool that extracts highlighted words from HTML files using multiprocessing for better performance.
 
+## Diagram
+
+<img width="720" height="1280" alt="image" src="https://github.com/user-attachments/assets/300fd147-d33b-4783-87b5-8f45a07ad57e" />
+
 ## What It Does
 
 - Scans an HTML file for `<nrmark class="highlight-*">...</nrmark>` tags  
