@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
 from lxml import html
 from configparser import ConfigParser
-from mp_workers import writer_process, extract_words_for_color_html
+from mp_workers import extract_words_for_color_html
 
 
 @dataclass
@@ -17,14 +17,12 @@ class HighlightExtractor:
 
     This class reads configuration from an INI file, parses the input HTML,
     discovers highlight color classes, and spawns worker processes to extract
-    words for each color. A dedicated writer process collects the words from
-    a queue and writes them to the configured output file.
+    words for each color. Results are collected and written to file in the
+    main process using the modern concurrent.futures API.
     """
 
     config_path: str | Path = "config.ini"
     """Path to the INI configuration file containing `paths` and `settings`."""
-
-    # These will be filled in __post_init__
     config: ConfigParser = field(init=False, repr=False)
     chapter_num: int = field(init=False)
     input_path: Path = field(init=False)
@@ -104,51 +102,9 @@ class HighlightExtractor:
 
         return sorted(colors)
 
-    def _extract_with_processes(self, tree: html.HtmlElement, colors: List[str]) -> None:
-        """
-        Extract highlighted words using separate processes per color.
-        Spawns a writer process to persist words to the configured output file,
-        and multiple worker processes that parse the HTML and push words to a
-        shared queue.
-
-        ## Params:
-            - tree: lxml.html.HtmlElement
-                Parsed HTML document root.
-            - colors: list[str]
-                Highlight class names to process (e.g., 'highlight-yellow').
-
-        ## Returns:
-            - None
-        """
-        html_str = html.tostring(tree, encoding="unicode")
-        q: mp.Queue = mp.Queue(maxsize=1000)
-
-        writer = mp.Process(
-            target=writer_process,
-            args=(q, self.output_path, self.encoding),
-            daemon=True,
-        )
-        writer.start()
-
-        workers = []
-        for color in colors:
-            p = mp.Process(
-                target=extract_words_for_color_html,
-                args=(q, html_str, color),
-                daemon=True,
-            )
-            p.start()
-            workers.append(p)
-
-        for p in workers:
-            p.join()
-
-        q.put(None)        # Signal end of data
-        writer.join()
-
     def extract_highlights(self, tree: html.HtmlElement, colors: Optional[List[str]] = None) -> None:
         """
-        Extract highlighted words from the given HTML document.
+        Extract highlighted words from the given HTML document using ProcessPoolExecutor.
         If no `colors` are provided, they are detected from the document or
         fall back to defaults from configuration.
 
@@ -163,7 +119,22 @@ class HighlightExtractor:
         """
         if colors is None:
             colors = self._list_highlight_colors(tree)
-        self._extract_with_processes(tree, colors)
+
+        html_str = html.tostring(tree, encoding="unicode")
+
+        max_workers = min(len(colors), (cpu_count := __import__("os").cpu_count()) or 4)
+
+        with open(self.output_path, "w", encoding=self.encoding) as outfile:
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                future_to_color = {
+                    executor.submit(extract_words_for_color_html, None, html_str, color): color
+                    for color in colors
+                }
+
+                for future in as_completed(future_to_color):
+                    words = future.result()
+                    for word in words:
+                        outfile.write(word + "\n")
 
     def run(self) -> None:
         """
@@ -178,9 +149,9 @@ class HighlightExtractor:
         """
         tree = self.parse_html()
         self.extract_highlights(tree)
+        print(f"Extraction completed → {self.output_path}")
 
 
 if __name__ == "__main__":
     extractor = HighlightExtractor("config.ini")
     extractor.run()
-    print("Extraction completed. Check the output file.")
