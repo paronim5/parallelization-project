@@ -63,7 +63,28 @@ parallel
 processing
 multiprocessing
 ```
+---
 
+## Bench Marks
+```
+Benchmark Results
+
+**100 highlights, 2 colors:**
+lxml: 0.0004s, regex: 0.0001s, bs4: 0.0019s
+regex is fastest (regex: 0.0001s, bs4: 0.0019s)
+
+**500 highlights, 3 colors:**
+lxml: 0.0012s, regex: 0.0005s, bs4: 0.0080s
+regex is fastest (regex: 0.0005s, bs4: 0.0080s)
+
+**1000 highlights, 5 colors:**
+lxml: 0.0023s, regex: 0.0010s, bs4: 0.0164s
+regex is fastest (regex: 0.0010s, bs4: 0.0164s)
+
+**2000 highlights, 5 colors:**
+lxml: 0.0044s, regex: 0.0020s, bs4: 0.0322s
+regex is fastest (regex: 0.0020s, bs4: 0.0322s)
+```
 ## License
 
 This project is licensed under the **Apache License 2.0** — see [LICENSE](LICENSE) for details.
