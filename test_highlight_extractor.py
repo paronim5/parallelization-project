@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 import multiprocessing
 from configparser import ConfigParser
-from highlight_extractor import HighlightExtractor, writer_process, extract_words_for_color_html
+from lxml import html
+from highlight_extractor import HighlightExtractor
+from mp_workers import writer_process, extract_words_for_color_html_queue
 
 
 class TestHighlightExtractor(unittest.TestCase):
@@ -12,17 +14,20 @@ class TestHighlightExtractor(unittest.TestCase):
     def setUp(self):
         if multiprocessing.get_start_method(allow_none=True) != "spawn":
             multiprocessing.set_start_method("spawn", force=True)
-        # Create temporary config, input, and output paths
+        # Create temporary directory and config
         self.temp_dir = tempfile.TemporaryDirectory()
         self.config_path = Path(self.temp_dir.name) / "test_config.ini"
-        self.input_path = Path(self.temp_dir.name) / "input.htm"
-        self.output_path = Path(self.temp_dir.name) / "output.txt"
 
-        # Write minimal config
+        # Create the chapter directory structure that HighlightExtractor expects
+        self.chapter_dir = Path("book_chapters/chapter999")
+        self.chapter_dir.mkdir(parents=True, exist_ok=True)
+        self.input_path = self.chapter_dir / "input.htm"
+        self.output_path = self.chapter_dir / "words.txt"
+
+        # Write minimal config matching HighlightExtractor expectations
         config = ConfigParser()
         config["paths"] = {
-            "input_path": str(self.input_path),
-            "output_path": str(self.output_path)
+            "chapter_num": "999"  # Use a test chapter number
         }
         config["settings"] = {
             "default_colors": "highlight-yellow, highlight-blue",
@@ -88,7 +93,7 @@ class TestHighlightExtractor(unittest.TestCase):
         <nrmark class="highlight-red"></nrmark>  <!-- empty -->
         '''
         # Run function
-        extract_words_for_color_html(q, html, "highlight-red")
+        extract_words_for_color_html_queue(q, html, "highlight-red")
         q.put(None)  # sentinel for reading
 
         results = []

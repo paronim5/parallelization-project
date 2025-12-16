@@ -2,7 +2,7 @@ import multiprocessing as mp
 from pathlib import Path
 from bs4 import BeautifulSoup
 from configparser import ConfigParser
-from mp_workers import writer_process, extract_words_for_color_html
+from mp_workers import writer_process, extract_words_for_color_html_queue
 
 
 class HighlightExtractor:
@@ -107,7 +107,7 @@ class HighlightExtractor:
 
         workers = []
         for color in colors:
-            p = mp.Process(target=extract_words_for_color_html, args=(q, html, color))
+            p = mp.Process(target=extract_words_for_color_html_queue, args=(q, html, color))
             p.start()
             workers.append(p)
 

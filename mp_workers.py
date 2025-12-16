@@ -106,9 +106,10 @@ def writer_process(q, path, encoding):
                 break
             f.write(item + "\n")
 
-def extract_words_for_color_html(q, html_text, color):
+def extract_words_for_color_html_queue(q, html_text, color):
     """
     Parse HTML text and enqueue words for a specific highlight color.
+    Used with manual multiprocessing.Queue approach.
 
     Params:
     - q: multiprocessing.Queue
